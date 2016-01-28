@@ -1,9 +1,11 @@
 // vim:sw=4:ts=4:et:
+#define _GNU_SOURCE
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <ctype.h>
 #include <signal.h>
 #include <poll.h>
@@ -1449,6 +1451,10 @@ main (int argc, char **argv)
     init(wm_name);
     // Get the fd to Xserver
     pollin[1].fd = xcb_get_file_descriptor(c);
+
+    // Prevent fgets to block
+    fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+
     for (;;) {
         bool redraw = false;
 
@@ -1462,9 +1468,12 @@ main (int argc, char **argv)
                 else break;                         // ...bail out
             }
             if (pollin[0].revents & POLLIN) { // New input, process it
-                if (fgets(input, sizeof(input), stdin) == NULL)
-                    break; // EOF received
-
+                *input = 0;
+                while (fgets_unlocked(input, sizeof input, stdin))
+                    ;
+                if (!*input) {
+                    break;
+                }
                 parse(input);
                 redraw = true;
             }
